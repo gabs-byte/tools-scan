@@ -145,32 +145,6 @@ label {
     background: #e0a800;
 }
 
-/* Seletor de Praças de Sondagem */
-#sonda-selector {
-    margin: 10px 0;
-    padding: 10px;
-    background: #f0f9f0;
-    border-radius: 10px;
-    border-left: 4px solid #11998e;
-}
-
-#sonda-selector label {
-    color: #11998e;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-#sonda-number {
-    background: white;
-    border: 2px solid #11998e;
-    font-weight: bold;
-}
-
-#sonda-number:focus {
-    border-color: #38ef7d;
-    box-shadow: 0 0 0 3px rgba(56, 239, 125, 0.2);
-}
-
 /* Pendências */
 #pending-section {
     margin-top: 20px;
