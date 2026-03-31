@@ -6,7 +6,7 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
     min-height: 100vh;
     padding: 20px;
 }
@@ -22,19 +22,13 @@ body {
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 h2 {
     text-align: center;
-    color: #333;
+    color: #11998e;
     margin-bottom: 30px;
     font-size: 28px;
 }
@@ -52,8 +46,8 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: #11998e;
+    box-shadow: 0 0 0 3px rgba(17, 153, 142, 0.1);
 }
 
 button {
@@ -66,12 +60,12 @@ button {
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s;
-    background: #667eea;
+    background: #11998e;
     color: white;
 }
 
 button:hover {
-    background: #5a67d8;
+    background: #0e7a6e;
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
@@ -81,7 +75,7 @@ button:active {
 }
 
 .primary-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
     font-size: 18px;
     padding: 15px;
 }
@@ -91,12 +85,8 @@ button:active {
     margin-top: 20px;
 }
 
-.confirm-btn:hover {
-    background: linear-gradient(135deg, #0e7a6e 0%, #2bc96a 100%);
-}
-
 .operator-info {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
     color: white;
     padding: 15px;
     border-radius: 10px;
@@ -120,7 +110,7 @@ label {
     display: block;
 }
 
-/* ==================== TELA DA CÂMERA ==================== */
+/* ==================== CÂMERA ==================== */
 #camera-screen {
     position: fixed;
     top: 0;
@@ -159,10 +149,6 @@ label {
     margin: 0;
 }
 
-#close-camera-btn:active {
-    transform: scale(0.98);
-}
-
 #scan-message {
     background: rgba(0, 0, 0, 0.8);
     color: white;
@@ -171,15 +157,105 @@ label {
     text-align: center;
     font-size: 14px;
     margin-bottom: 10px;
-    backdrop-filter: blur(5px);
+}
+
+/* ==================== TOAST ==================== */
+.toast {
+    position: fixed;
+    bottom: 30px;
+    left: 20px;
+    right: 20px;
+    background: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 10001;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    font-size: 14px;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast.success { background: #28a745; }
+.toast.error { background: #dc3545; }
+.toast.warning { background: #ffc107; color: #333; }
+.toast.info { background: #17a2b8; }
+
+/* ==================== LOADING ==================== */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 10002;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #11998e;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    color: white;
+    margin-top: 15px;
+    font-size: 16px;
+}
+
+/* ==================== INSTALL BANNER ==================== */
+#install-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #11998e;
+    color: white;
+    padding: 15px;
+    text-align: center;
+    z-index: 10001;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    display: none;
+}
+
+#install-banner p {
+    margin-bottom: 10px;
+}
+
+#install-banner button {
+    background: white;
+    color: #11998e;
+    width: auto;
+    padding: 8px 20px;
+    margin: 0 5px;
+    display: inline-block;
+}
+
+#close-install-btn {
+    background: transparent;
+    color: white;
+    border: 1px solid white;
 }
 
 @media (max-width: 600px) {
-    .screen {
-        padding: 20px;
-    }
-    
-    h2 {
-        font-size: 24px;
-    }
+    .screen { padding: 20px; }
+    h2 { font-size: 24px; }
 }
