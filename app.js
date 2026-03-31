@@ -31,8 +31,6 @@ const scanBadgeBtn = document.getElementById('scan-badge-btn');
 const matriculaInput = document.getElementById('matricula');
 const loginBtn = document.getElementById('login-btn');
 const toLocationSelect = document.getElementById('to-location');
-const sondaSelector = document.getElementById('sonda-selector');
-const sondaNumberSelect = document.getElementById('sonda-number');
 const submitBtn = document.getElementById('submit-btn');
 const manualPartCode = document.getElementById('manual-part-code');
 const manualSearchBtn = document.getElementById('manual-search-btn');
@@ -77,7 +75,7 @@ async function loadPartsCache() {
         const saved = localStorage.getItem('partsCache');
         if (saved) {
             partsCache = JSON.parse(saved);
-            console.log(`📦 Cache de peças carregado: ${partsCache.length} peças`);
+            console.log(`Cache de peças carregado: ${partsCache.length} peças`);
         }
         
         if (navigator.onLine) {
@@ -86,7 +84,7 @@ async function loadPartsCache() {
             if (data.success && data.parts) {
                 partsCache = data.parts;
                 localStorage.setItem('partsCache', JSON.stringify(partsCache));
-                console.log(`🔄 Cache de peças atualizado: ${partsCache.length} peças`);
+                console.log(`Cache de peças atualizado: ${partsCache.length} peças`);
             }
         }
     } catch (error) {
@@ -190,14 +188,14 @@ function savePendingMovement(data) {
     localStorage.setItem('movementsHistory', JSON.stringify(history));
     
     updatePendingBadge();
-    showToast('📱 Sem conexão. Movimentação salva localmente.', 'warning');
+    showToast('Sem conexão. Movimentação salva localmente.', 'warning');
 }
 
 async function syncPendingMovements() {
     if (!navigator.onLine) return;
     if (pendingMovements.length === 0) return;
     
-    showToast(`🔄 Sincronizando ${pendingMovements.length} movimentações...`, 'info');
+    showToast(`Sincronizando ${pendingMovements.length} movimentações...`, 'info');
     showLoading('Sincronizando dados...');
     
     const failed = [];
@@ -221,13 +219,13 @@ async function syncPendingMovements() {
     if (failed.length === 0) {
         pendingMovements = [];
         localStorage.removeItem('pendingMovements');
-        showToast('✅ Todas as movimentações sincronizadas!', 'success');
+        showToast('Todas as movimentações sincronizadas!', 'success');
         updatePendingBadge();
         hidePendingSection();
     } else {
         pendingMovements = failed;
         localStorage.setItem('pendingMovements', JSON.stringify(failed));
-        showToast(`⚠️ ${failed.length} movimentações pendentes`, 'warning');
+        showToast(`${failed.length} movimentações pendentes`, 'warning');
         updatePendingBadge();
         showPendingSection();
     }
@@ -239,7 +237,7 @@ function updatePendingBadge() {
     const count = pendingMovements.length;
     const badge = document.getElementById('pending-badge');
     if (count > 0) {
-        badge.textContent = `📦 ${count} movimentação${count > 1 ? 'ões' : ''} pendente${count > 1 ? 's' : ''}`;
+        badge.textContent = `${count} movimentação${count > 1 ? 'ões' : ''} pendente${count > 1 ? 's' : ''}`;
         badge.style.display = 'block';
     } else {
         badge.style.display = 'none';
@@ -273,7 +271,7 @@ try {
     if (pendingMovements.length > 0) {
         updatePendingBadge();
         showPendingSection();
-        showToast(`📦 ${pendingMovements.length} movimentações pendentes`, 'info');
+        showToast(`${pendingMovements.length} movimentações pendentes`, 'info');
     }
 } catch(e) {}
 
@@ -282,18 +280,18 @@ window.syncPendingMovements = syncPendingMovements;
 // ===================== CÂMERA CORRIGIDA =====================
 async function startCamera(callback) {
     if (MODO_SIMULACAO) {
-        showToast('🔧 Modo simulação: Peça P001', 'info');
+        showToast('Modo simulação: Peça P001', 'info');
         callback("P001");
         return;
     }
     
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showToast('❌ Navegador não suporta câmera', 'error');
+        showToast('Navegador não suporta câmera', 'error');
         return;
     }
     
     cameraScreen.style.display = 'block';
-    scanMessage.innerText = '📷 Solicitando permissão...';
+    scanMessage.innerText = 'Solicitando permissão...';
     
     const constraintsList = [
         { video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
@@ -314,8 +312,8 @@ async function startCamera(callback) {
     }
     
     if (!stream) {
-        scanMessage.innerText = '❌ Erro ao acessar câmera';
-        showToast('❌ Não foi possível acessar a câmera', 'error');
+        scanMessage.innerText = 'Erro ao acessar câmera';
+        showToast('Não foi possível acessar a câmera', 'error');
         setTimeout(() => stopCamera(), 2000);
         return;
     }
@@ -330,7 +328,7 @@ async function startCamera(callback) {
         };
     });
     
-    scanMessage.innerText = '📷 Aponte para o QR Code';
+    scanMessage.innerText = 'Aponte para o QR Code';
     startQRScanning(callback);
 }
 
@@ -357,7 +355,7 @@ function startQRScanning(callback) {
         
         if (code) {
             lastScanTime = now;
-            scanMessage.innerText = '✅ QR Code detectado!';
+            scanMessage.innerText = 'QR Code detectado!';
             clearInterval(scanInterval);
             scanInterval = null;
             setTimeout(() => {
@@ -387,7 +385,7 @@ if (closeCameraBtn) closeCameraBtn.onclick = stopCamera;
 function showMainScreen() {
     loginScreen.style.display = 'none';
     mainScreen.style.display = 'block';
-    operatorInfoDiv.innerText = `👤 Operador: ${currentOperator.name} (${currentOperator.matricula})`;
+    operatorInfoDiv.innerText = `Operador: ${currentOperator.name} (${currentOperator.matricula})`;
     showToast(`Bem-vindo, ${currentOperator.name}!`, 'success');
 }
 
@@ -396,16 +394,6 @@ function resetPartInfo() {
     movementForm.reset();
     currentPart = null;
 }
-
-// Mostrar seletor de sonda quando escolher "Praça de Sondagem"
-toLocationSelect.addEventListener('change', () => {
-    if (toLocationSelect.value === 'Praça de Sondagem') {
-        sondaSelector.style.display = 'block';
-        showToast('📍 Selecione a praça de sondagem (N1 a N10)', 'info');
-    } else {
-        sondaSelector.style.display = 'none';
-    }
-});
 
 // ===================== EVENTOS =====================
 loginBtn.onclick = async () => {
@@ -522,25 +510,11 @@ movementForm.onsubmit = async (e) => {
         return;
     }
     
-    let toLocation = toLocationSelect.value;
-    let sonda = '';
-    let sondaNumber = '';
+    const toLocation = toLocationSelect.value;
     
-    if (toLocation === 'Praça de Sondagem') {
-        sondaNumber = sondaNumberSelect.value;
-        toLocation = `Praça ${sondaNumber}`;
-        sonda = sondaNumber;
-        
-        if (!sondaNumber) {
-            showToast('⚠️ Selecione uma praça de sondagem (N1 a N10)', 'warning');
-            return;
-        }
-        
-        showToast(`📍 Peça será movida para ${toLocation}`, 'info');
-    }
-    
-    if (toLocationSelect.value === 'Oficina') {
-        showToast('🔧 ATENÇÃO: Acionar time de manutenção!', 'warning');
+    // Alerta se for para oficina
+    if (toLocation === 'Oficina') {
+        showToast('ATENÇÃO: Acionar time de manutenção!', 'warning');
     }
     
     const data = {
@@ -564,14 +538,14 @@ movementForm.onsubmit = async (e) => {
         }
         
         if (result.success) {
-            showToast('✅ Movimentação registrada!', 'success');
+            showToast('Movimentação registrada!', 'success');
             resetPartInfo();
             await syncPendingMovements();
         } else if (!navigator.onLine || result.offline) {
             savePendingMovement(data);
             resetPartInfo();
         } else {
-            showToast('❌ Erro ao registrar', 'error');
+            showToast('Erro ao registrar', 'error');
         }
     } catch (error) {
         savePendingMovement(data);
@@ -588,17 +562,17 @@ syncNowBtn.onclick = async () => {
 };
 
 // ===================== VERIFICAÇÃO INICIAL =====================
-console.log("=== 🚀 Tools Scan Iniciado ===");
-console.log("🎮 Modo simulação:", MODO_SIMULACAO ? "ATIVADO" : "DESATIVADO");
+console.log("Tools Scan Iniciado");
+console.log("Modo simulação:", MODO_SIMULACAO ? "ATIVADO" : "DESATIVADO");
 
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    console.log("✅ Camera API suportada");
+    console.log("Camera API suportada");
 } else {
-    console.warn("⚠️ Camera API NÃO suportada");
+    console.warn("Camera API NÃO suportada");
 }
 
 if (typeof jsQR !== 'undefined') {
-    console.log("✅ Biblioteca jsQR carregada");
+    console.log("Biblioteca jsQR carregada");
 }
 
 if (navigator.onLine) {
