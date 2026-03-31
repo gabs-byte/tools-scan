@@ -1,11 +1,12 @@
 // ===================== CONFIGURAÇÃO =====================
-const API_BASE = "https://script.google.com/macros/s/AKfycbxWE8SYk-m3ZVUjdQn0Z_eaQdkLjT_fTtiisffmWg9ogn5muUe4eKc_gV3FnwqMOnxN/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbyd_7YvNgc_sn9ax8IhWLBNd47RZXGIjkNvBWp-IE2TdtCr8cvlmzlxM529FYaLBxgj/exechttps://script.google.com/macros/s/AKfycbyd_7YvNgc_sn9ax8IhWLBNd47RZXGIjkNvBWp-IE2TdtCr8cvlmzlxM529FYaLBxgj/exec";
 
 // ===================== CONFIGURAÇÕES =====================
 const MODO_SIMULACAO = false;
 
-// Cache de peças (para funcionar offline)
+// Cache de peças e sondas
 let partsCache = [];
+let sondasCache = [];
 
 // Variáveis globais
 let currentOperator = null;
@@ -16,6 +17,9 @@ let scanInterval = null;
 // Offline - movimentações pendentes
 let pendingMovements = [];
 
+// Status de rede
+let connectionType = "unknown";
+
 // ===================== ELEMENTOS DO DOM =====================
 const loginScreen = document.getElementById('login-screen');
 const mainScreen = document.getElementById('main-screen');
@@ -24,6 +28,8 @@ const scanPartBtn = document.getElementById('scan-part-btn');
 const partInfoDiv = document.getElementById('part-info');
 const partNameSpan = document.getElementById('part-name');
 const partSondaSpan = document.getElementById('part-sonda');
+const sondaModeloSpan = document.getElementById('sonda-modelo');
+const sondaResponsavelSpan = document.getElementById('sonda-responsavel');
 const currentLocationSpan = document.getElementById('current-location');
 const fromLocationInput = document.getElementById('from-location');
 const movementForm = document.getElementById('movement-form');
@@ -38,6 +44,7 @@ const pendingBadge = document.getElementById('pending-badge');
 const pendingSection = document.getElementById('pending-section');
 const pendingList = document.getElementById('pending-list');
 const syncNowBtn = document.getElementById('sync-now-btn');
+const connectionStatus = document.getElementById('connection-status');
 
 // Elementos câmera
 const cameraScreen = document.getElementById('camera-screen');
@@ -69,6 +76,91 @@ function hideLoading() {
     loading.style.display = 'none';
 }
 
+// ===================== STATUS DE REDE MELHORADO =====================
+async function checkNetworkQuality() {
+    if (!navigator.onLine) {
+        connectionType = "offline";
+        updateConnectionStatusDisplay();
+        return "offline";
+    }
+    
+    const startTime = Date.now();
+    try {
+        const response = await fetch(`${API_BASE}?action=getStats`, { method: 'HEAD' });
+        const endTime = Date.now();
+        const latency = endTime - startTime;
+        
+        if (latency < 200) {
+            connectionType = "excelente";
+        } else if (latency < 500) {
+            connectionType = "boa";
+        } else if (latency < 1000) {
+            connectionType = "regular";
+        } else {
+            connectionType = "lenta";
+        }
+        
+        updateConnectionStatusDisplay();
+        return connectionType;
+    } catch (error) {
+        connectionType = "instavel";
+        updateConnectionStatusDisplay();
+        return "instavel";
+    }
+}
+
+function updateConnectionStatusDisplay() {
+    const statusDiv = document.getElementById('connection-status');
+    if (!statusDiv) return;
+    
+    if (!navigator.onLine) {
+        statusDiv.innerHTML = '⚠️ Offline - Dados salvos localmente';
+        statusDiv.className = 'connection-status offline';
+    } else {
+        switch(connectionType) {
+            case 'excelente':
+                statusDiv.innerHTML = '📶 Conexão Excelente';
+                statusDiv.className = 'connection-status online';
+                break;
+            case 'boa':
+                statusDiv.innerHTML = '📶 Conexão Boa';
+                statusDiv.className = 'connection-status online';
+                break;
+            case 'regular':
+                statusDiv.innerHTML = '📶 Conexão Regular';
+                statusDiv.className = 'connection-status online';
+                break;
+            case 'lenta':
+                statusDiv.innerHTML = '🐢 Conexão Lenta';
+                statusDiv.className = 'connection-status online';
+                break;
+            default:
+                statusDiv.innerHTML = '📡 Online';
+                statusDiv.className = 'connection-status online';
+        }
+    }
+}
+
+// Monitorar mudanças de rede
+window.addEventListener('online', async () => {
+    showToast('Conexão restaurada. Sincronizando dados...', 'info');
+    await checkNetworkQuality();
+    if (window.syncPendingMovements) await syncPendingMovements();
+});
+
+window.addEventListener('offline', () => {
+    connectionType = "offline";
+    updateConnectionStatusDisplay();
+    showToast('Sem conexão. Os dados serão salvos localmente.', 'warning');
+});
+
+// Verificar qualidade da rede periodicamente
+setInterval(async () => {
+    if (navigator.onLine) {
+        await checkNetworkQuality();
+    }
+}, 30000);
+
 // ===================== OFFLINE - CARREGAR CATÁLOGO =====================
 async function loadPartsCache() {
     try {
@@ -78,17 +170,34 @@ async function loadPartsCache() {
             console.log(`Cache de peças carregado: ${partsCache.length} peças`);
         }
         
+        const savedSondas = localStorage.getItem('sondasCache');
+        if (savedSondas) {
+            sondasCache = JSON.parse(savedSondas);
+            console.log(`Cache de sondas carregado: ${sondasCache.length} sondas`);
+        }
+        
         if (navigator.onLine) {
-            const response = await fetch(`${API_BASE}?action=getAllParts`);
-            const data = await response.json();
-            if (data.success && data.parts) {
-                partsCache = data.parts;
+            const [partsResponse, sondasResponse] = await Promise.all([
+                fetch(`${API_BASE}?action=getAllParts`),
+                fetch(`${API_BASE}?action=getAllSondas`)
+            ]);
+            
+            const partsData = await partsResponse.json();
+            if (partsData.success && partsData.parts) {
+                partsCache = partsData.parts;
                 localStorage.setItem('partsCache', JSON.stringify(partsCache));
                 console.log(`Cache de peças atualizado: ${partsCache.length} peças`);
             }
+            
+            const sondasData = await sondasResponse.json();
+            if (sondasData.success && sondasData.sondas) {
+                sondasCache = sondasData.sondas;
+                localStorage.setItem('sondasCache', JSON.stringify(sondasCache));
+                console.log(`Cache de sondas atualizado: ${sondasCache.length} sondas`);
+            }
         }
     } catch (error) {
-        console.log('Erro ao carregar cache de peças:', error);
+        console.log('Erro ao carregar cache:', error);
     }
 }
 
@@ -99,10 +208,16 @@ async function getPartInfoOfflineFirst(partId) {
         const movements = JSON.parse(localStorage.getItem('movementsHistory') || '[]');
         const lastMovement = movements.filter(m => m.partId === partId).pop();
         
+        let sondaInfo = null;
+        if (cachedPart.sondaId && cachedPart.sondaId !== "Não informada") {
+            sondaInfo = sondasCache.find(s => s.sondaId === cachedPart.sondaId);
+        }
+        
         return {
             partId: partId,
             partName: cachedPart.partName,
-            sonda: cachedPart.sonda || 'Não informada',
+            sondaId: cachedPart.sondaId || 'Não informada',
+            sondaInfo: sondaInfo,
             currentLocation: lastMovement ? lastMovement.toLocation : 'Desconhecida',
             fromCache: true
         };
@@ -151,7 +266,7 @@ async function addLog(data) {
             action: "addLog",
             operatorMatricula: data.operatorMatricula,
             partId: data.partId,
-            sonda: data.sonda || "",
+            sondaId: data.sondaId || "",
             fromLocation: data.fromLocation,
             toLocation: data.toLocation,
             status: data.status,
@@ -387,6 +502,7 @@ function showMainScreen() {
     mainScreen.style.display = 'block';
     operatorInfoDiv.innerText = `Operador: ${currentOperator.name} (${currentOperator.matricula})`;
     showToast(`Bem-vindo, ${currentOperator.name}!`, 'success');
+    checkNetworkQuality();
 }
 
 function resetPartInfo() {
@@ -452,7 +568,17 @@ scanPartBtn.onclick = () => {
             
             currentPart = partInfo;
             partNameSpan.innerText = partInfo.partName;
-            partSondaSpan.innerText = partInfo.sonda || 'Não informada';
+            
+            if (partInfo.sondaInfo && !partInfo.sondaInfo.error) {
+                partSondaSpan.innerText = partInfo.sondaId;
+                sondaModeloSpan.innerText = partInfo.sondaInfo.modelo || 'Não informado';
+                sondaResponsavelSpan.innerText = partInfo.sondaInfo.responsavel || 'Não informado';
+            } else {
+                partSondaSpan.innerText = partInfo.sondaId || 'Não informada';
+                sondaModeloSpan.innerText = 'Não informado';
+                sondaResponsavelSpan.innerText = 'Não informado';
+            }
+            
             currentLocationSpan.innerText = partInfo.currentLocation;
             fromLocationInput.value = partInfo.currentLocation;
             partInfoDiv.style.display = 'block';
@@ -485,7 +611,17 @@ manualSearchBtn.onclick = async () => {
         
         currentPart = partInfo;
         partNameSpan.innerText = partInfo.partName;
-        partSondaSpan.innerText = partInfo.sonda || 'Não informada';
+        
+        if (partInfo.sondaInfo && !partInfo.sondaInfo.error) {
+            partSondaSpan.innerText = partInfo.sondaId;
+            sondaModeloSpan.innerText = partInfo.sondaInfo.modelo || 'Não informado';
+            sondaResponsavelSpan.innerText = partInfo.sondaInfo.responsavel || 'Não informado';
+        } else {
+            partSondaSpan.innerText = partInfo.sondaId || 'Não informada';
+            sondaModeloSpan.innerText = 'Não informado';
+            sondaResponsavelSpan.innerText = 'Não informado';
+        }
+        
         currentLocationSpan.innerText = partInfo.currentLocation;
         fromLocationInput.value = partInfo.currentLocation;
         partInfoDiv.style.display = 'block';
@@ -512,15 +648,14 @@ movementForm.onsubmit = async (e) => {
     
     const toLocation = toLocationSelect.value;
     
-    // Alerta se for para oficina
     if (toLocation === 'Oficina') {
-        showToast('ATENÇÃO: Acionar time de manutenção!', 'warning');
+        showToast('ATENÇÃO: Peça enviada para manutenção! Alerta enviado por e-mail.', 'warning');
     }
     
     const data = {
         operatorMatricula: currentOperator.matricula,
         partId: currentPart.partId,
-        sonda: currentPart.sonda || '',
+        sondaId: currentPart.sondaId || '',
         fromLocation: fromLocationInput.value,
         toLocation: toLocation,
         status: document.getElementById('status').value,
