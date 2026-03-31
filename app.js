@@ -80,7 +80,6 @@ async function loadPartsCache() {
             console.log(`📦 Cache de peças carregado: ${partsCache.length} peças`);
         }
         
-        // Se estiver online, atualiza o cache
         if (navigator.onLine) {
             const response = await fetch(`${API_BASE}?action=getAllParts`);
             const data = await response.json();
@@ -95,13 +94,10 @@ async function loadPartsCache() {
     }
 }
 
-// Buscar peça (offline-first)
 async function getPartInfoOfflineFirst(partId) {
-    // Primeiro tenta no cache local
     const cachedPart = partsCache.find(p => p.partId === partId);
     
     if (cachedPart) {
-        // Buscar localização atual no localStorage
         const movements = JSON.parse(localStorage.getItem('movementsHistory') || '[]');
         const lastMovement = movements.filter(m => m.partId === partId).pop();
         
@@ -114,12 +110,10 @@ async function getPartInfoOfflineFirst(partId) {
         };
     }
     
-    // Se não tem no cache e está offline, erro
     if (!navigator.onLine) {
         return { error: "Peça não encontrada no cache offline. Conecte-se para sincronizar." };
     }
     
-    // Se está online, busca na API
     try {
         const result = await getPartInfo(partId);
         return result;
@@ -186,7 +180,6 @@ function savePendingMovement(data) {
     });
     localStorage.setItem('pendingMovements', JSON.stringify(pendingMovements));
     
-    // Salvar também no histórico local
     const history = JSON.parse(localStorage.getItem('movementsHistory') || '[]');
     history.push({
         ...data,
@@ -213,7 +206,6 @@ async function syncPendingMovements() {
         try {
             const result = await addLog(movement);
             if (result.success) {
-                // Marcar como sincronizado no histórico
                 const history = JSON.parse(localStorage.getItem('movementsHistory') || '[]');
                 const idx = history.findIndex(h => h.timestamp === movement.timestamp);
                 if (idx !== -1) history[idx].synced = true;
@@ -409,6 +401,7 @@ function resetPartInfo() {
 toLocationSelect.addEventListener('change', () => {
     if (toLocationSelect.value === 'Praça de Sondagem') {
         sondaSelector.style.display = 'block';
+        showToast('📍 Selecione a praça de sondagem (N1 a N10)', 'info');
     } else {
         sondaSelector.style.display = 'none';
     }
@@ -428,7 +421,6 @@ loginBtn.onclick = async () => {
         if (result.success) {
             currentOperator = result;
             showMainScreen();
-            // Carregar cache de peças
             await loadPartsCache();
         } else {
             showToast(result.error || 'Operador não encontrado', 'error');
@@ -457,7 +449,6 @@ scanBadgeBtn.onclick = () => {
     });
 };
 
-// Busca por QR Code
 scanPartBtn.onclick = () => {
     resetPartInfo();
     showToast('Aponte a câmera para o QR Code da peça', 'info');
@@ -486,7 +477,6 @@ scanPartBtn.onclick = () => {
     });
 };
 
-// Busca manual por código
 manualSearchBtn.onclick = async () => {
     const partId = manualPartCode.value.trim();
     if (!partId) {
@@ -524,7 +514,6 @@ manualPartCode.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') manualSearchBtn.click();
 });
 
-// Envio do formulário
 movementForm.onsubmit = async (e) => {
     e.preventDefault();
     
@@ -535,10 +524,23 @@ movementForm.onsubmit = async (e) => {
     
     let toLocation = toLocationSelect.value;
     let sonda = '';
+    let sondaNumber = '';
     
     if (toLocation === 'Praça de Sondagem') {
-        sonda = sondaNumberSelect.value;
-        toLocation = `${sonda}`;
+        sondaNumber = sondaNumberSelect.value;
+        toLocation = `Praça ${sondaNumber}`;
+        sonda = sondaNumber;
+        
+        if (!sondaNumber) {
+            showToast('⚠️ Selecione uma praça de sondagem (N1 a N10)', 'warning');
+            return;
+        }
+        
+        showToast(`📍 Peça será movida para ${toLocation}`, 'info');
+    }
+    
+    if (toLocationSelect.value === 'Oficina') {
+        showToast('🔧 ATENÇÃO: Acionar time de manutenção!', 'warning');
     }
     
     const data = {
@@ -552,11 +554,6 @@ movementForm.onsubmit = async (e) => {
     };
     
     showLoading('Registrando movimentação...');
-    
-    // Alerta se for para oficina
-    if (toLocationSelect.value === 'Oficina') {
-        showToast('🔧 ATENÇÃO: Acionar time de manutenção!', 'warning');
-    }
     
     try {
         let result;
@@ -583,7 +580,6 @@ movementForm.onsubmit = async (e) => {
     hideLoading();
 };
 
-// Botão sincronizar
 syncNowBtn.onclick = async () => {
     await syncPendingMovements();
     if (pendingMovements.length === 0) {
@@ -605,7 +601,6 @@ if (typeof jsQR !== 'undefined') {
     console.log("✅ Biblioteca jsQR carregada");
 }
 
-// Tentar sincronizar ao iniciar
 if (navigator.onLine) {
     setTimeout(() => syncPendingMovements(), 2000);
 }
