@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Controle Peças">
+    
+    <title>Controle de Peças</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <!-- Favicon para navegadores -->
+    <link rel="icon" type="image/png" href="icon-192.png">
+</head>
+<body>
+    <div id="login-screen" class="screen">
+        <h2>🎯 Controle de Peças</h2>
+        <input type="text" id="matricula" placeholder="Digite sua matrícula">
+        <button id="login-btn">✅ Entrar com Matrícula</button>
+        <button id="scan-badge-btn">📱 Ler QR Code do Crachá</button>
+    </div>
+
+    <div id="main-screen" class="screen" style="display:none;">
+        <div id="operator-info" class="operator-info"></div>
+        
+        <div class="card">
+            <button id="scan-part-btn" class="primary-btn">🔍 Escanear Peça</button>
+        </div>
+        
+        <div id="part-info" class="card" style="display:none;">
+            <h3>📦 Informações da Peça</h3>
+            <p><strong>Peça:</strong> <span id="part-name"></span></p>
+            <p><strong>Localização atual:</strong> <span id="current-location"></span></p>
+            
+            <form id="movement-form">
+                <label>📍 De (local atual):</label>
+                <input type="text" id="from-location" readonly>
+                
+                <label>🎯 Para:</label>
+                <select id="to-location">
+                    <option value="Praça de Sondagem">Praça de Sondagem</option>
+                    <option value="Estoque">Estoque</option>
+                    <option value="Oficina">Oficina</option>
+                    <option value="Manutenção">Manutenção</option>
+                    <option value="Campo">Campo</option>
+                </select>
+                
+                <label>⚙️ Status:</label>
+                <select id="status">
+                    <option value="Operando">✅ Operando</option>
+                    <option value="Parada">⏸️ Parada</option>
+                </select>
+                
+                <label>📝 Observações:</label>
+                <textarea id="notes" rows="3" placeholder="Ex: Quebrou rosca, necessidade de manutenção..."></textarea>
+                
+                <button type="submit" class="confirm-btn">✅ Confirmar Movimentação</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tela da câmera -->
+    <div id="camera-screen" style="display:none;">
+        <video id="camera-video" autoplay playsinline></video>
+        <canvas id="camera-canvas" style="display:none;"></canvas>
+        <div class="camera-controls">
+            <div id="scan-message">📷 Iniciando câmera...</div>
+            <button id="close-camera-btn">❌ Fechar Câmera</button>
+        </div>
+    </div>
+
+    <!-- Banner de instalação do PWA -->
+    <div id="install-banner" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#667eea; color:white; padding:15px; text-align:center; z-index:10001; box-shadow:0 -2px 10px rgba(0,0,0,0.2);">
+        <p style="margin-bottom:10px;">📱 Instale este app no seu celular!</p>
+        <button id="install-btn" style="background:white; color:#667eea; width:auto; padding:8px 20px; margin:0;">Instalar</button>
+        <button id="close-install-btn" style="background:transparent; color:white; width:auto; padding:8px 20px; margin:0;">Fechar</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="app.js"></script>
+    
+    <script>
+        // Registro do Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(registration => {
+                    console.log('✅ Service Worker registrado:', registration.scope);
+                })
+                .catch(error => {
+                    console.error('❌ Erro ao registrar Service Worker:', error);
+                });
+        }
+        
+        // Lógica de instalação do PWA
+        let deferredPrompt;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('install-banner').style.display = 'block';
+        });
+        
+        document.getElementById('install-btn').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`Instalação: ${outcome}`);
+                deferredPrompt = null;
+                document.getElementById('install-banner').style.display = 'none';
+            }
+        });
+        
+        document.getElementById('close-install-btn').addEventListener('click', () => {
+            document.getElementById('install-banner').style.display = 'none';
+        });
+    </script>
+</body>
+</html>
