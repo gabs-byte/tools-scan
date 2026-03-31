@@ -1,8 +1,11 @@
 // ===================== CONFIGURAÇÃO =====================
-const API_BASE = "https://script.google.com/macros/s/AKfycbz5XgXIHsaSLgQ4NxvM2Ay-NaBjJvq20txCUDNDJFI9SODK7O7JZQJ4w9-raHaUMdGl/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbxWE8SYk-m3ZVUjdQn0Z_eaQdkLjT_fTtiisffmWg9ogn5muUe4eKc_gV3FnwqMOnxN/exec";
 
 // ===================== CONFIGURAÇÕES =====================
 const MODO_SIMULACAO = false;
+
+// Cache de peças (para funcionar offline)
+let partsCache = [];
 
 // Variáveis globais
 let currentOperator = null;
@@ -31,6 +34,12 @@ const toLocationSelect = document.getElementById('to-location');
 const sondaSelector = document.getElementById('sonda-selector');
 const sondaNumberSelect = document.getElementById('sonda-number');
 const submitBtn = document.getElementById('submit-btn');
+const manualPartCode = document.getElementById('manual-part-code');
+const manualSearchBtn = document.getElementById('manual-search-btn');
+const pendingBadge = document.getElementById('pending-badge');
+const pendingSection = document.getElementById('pending-section');
+const pendingList = document.getElementById('pending-list');
+const syncNowBtn = document.getElementById('sync-now-btn');
 
 // Elementos câmera
 const cameraScreen = document.getElementById('camera-screen');
@@ -53,7 +62,8 @@ function showToast(message, type = 'info') {
 }
 
 function showLoading(text = 'Processando...') {
-    document.querySelector('.loading-text').textContent = text;
+    const loadingText = document.querySelector('.loading-text');
+    if (loadingText) loadingText.textContent = text;
     loading.style.display = 'flex';
 }
 
@@ -61,58 +71,62 @@ function hideLoading() {
     loading.style.display = 'none';
 }
 
-// ===================== OFFLINE - SALVAR MOVIMENTAÇÕES =====================
-function savePendingMovement(data) {
-    pendingMovements.push({
-        ...data,
-        timestamp: new Date().toISOString(),
-        operator: currentOperator
-    });
-    localStorage.setItem('pendingMovements', JSON.stringify(pendingMovements));
-    showToast('📱 Sem conexão. Movimentação salva localmente.', 'warning');
-}
-
-async function syncPendingMovements() {
-    if (!navigator.onLine) return;
-    if (pendingMovements.length === 0) return;
-    
-    showToast(`🔄 Sincronizando ${pendingMovements.length} movimentações...`, 'info');
-    showLoading('Sincronizando dados...');
-    
-    const failed = [];
-    
-    for (const movement of pendingMovements) {
-        try {
-            const result = await addLog(movement);
-            if (!result.success) failed.push(movement);
-        } catch (error) {
-            failed.push(movement);
+// ===================== OFFLINE - CARREGAR CATÁLOGO =====================
+async function loadPartsCache() {
+    try {
+        const saved = localStorage.getItem('partsCache');
+        if (saved) {
+            partsCache = JSON.parse(saved);
+            console.log(`📦 Cache de peças carregado: ${partsCache.length} peças`);
         }
+        
+        // Se estiver online, atualiza o cache
+        if (navigator.onLine) {
+            const response = await fetch(`${API_BASE}?action=getAllParts`);
+            const data = await response.json();
+            if (data.success && data.parts) {
+                partsCache = data.parts;
+                localStorage.setItem('partsCache', JSON.stringify(partsCache));
+                console.log(`🔄 Cache de peças atualizado: ${partsCache.length} peças`);
+            }
+        }
+    } catch (error) {
+        console.log('Erro ao carregar cache de peças:', error);
     }
-    
-    if (failed.length === 0) {
-        pendingMovements = [];
-        localStorage.removeItem('pendingMovements');
-        showToast('✅ Todas as movimentações sincronizadas!', 'success');
-    } else {
-        pendingMovements = failed;
-        localStorage.setItem('pendingMovements', JSON.stringify(failed));
-        showToast(`⚠️ ${failed.length} movimentações pendentes`, 'warning');
-    }
-    
-    hideLoading();
 }
 
-// Carregar movimentações pendentes do localStorage
-try {
-    const saved = localStorage.getItem('pendingMovements');
-    if (saved) pendingMovements = JSON.parse(saved);
-    if (pendingMovements.length > 0) {
-        showToast(`📦 ${pendingMovements.length} movimentações pendentes`, 'info');
+// Buscar peça (offline-first)
+async function getPartInfoOfflineFirst(partId) {
+    // Primeiro tenta no cache local
+    const cachedPart = partsCache.find(p => p.partId === partId);
+    
+    if (cachedPart) {
+        // Buscar localização atual no localStorage
+        const movements = JSON.parse(localStorage.getItem('movementsHistory') || '[]');
+        const lastMovement = movements.filter(m => m.partId === partId).pop();
+        
+        return {
+            partId: partId,
+            partName: cachedPart.partName,
+            sonda: cachedPart.sonda || 'Não informada',
+            currentLocation: lastMovement ? lastMovement.toLocation : 'Desconhecida',
+            fromCache: true
+        };
     }
-} catch(e) {}
-
-window.syncPendingMovements = syncPendingMovements;
+    
+    // Se não tem no cache e está offline, erro
+    if (!navigator.onLine) {
+        return { error: "Peça não encontrada no cache offline. Conecte-se para sincronizar." };
+    }
+    
+    // Se está online, busca na API
+    try {
+        const result = await getPartInfo(partId);
+        return result;
+    } catch (error) {
+        return { error: error.message };
+    }
+}
 
 // ===================== FUNÇÕES API =====================
 async function authenticate(matricula) {
@@ -162,6 +176,117 @@ async function addLog(data) {
     }
 }
 
+// ===================== OFFLINE - SALVAR MOVIMENTAÇÕES =====================
+function savePendingMovement(data) {
+    pendingMovements.push({
+        ...data,
+        timestamp: new Date().toISOString(),
+        operator: currentOperator,
+        synced: false
+    });
+    localStorage.setItem('pendingMovements', JSON.stringify(pendingMovements));
+    
+    // Salvar também no histórico local
+    const history = JSON.parse(localStorage.getItem('movementsHistory') || '[]');
+    history.push({
+        ...data,
+        timestamp: new Date().toISOString(),
+        operator: currentOperator.name,
+        synced: false
+    });
+    localStorage.setItem('movementsHistory', JSON.stringify(history));
+    
+    updatePendingBadge();
+    showToast('📱 Sem conexão. Movimentação salva localmente.', 'warning');
+}
+
+async function syncPendingMovements() {
+    if (!navigator.onLine) return;
+    if (pendingMovements.length === 0) return;
+    
+    showToast(`🔄 Sincronizando ${pendingMovements.length} movimentações...`, 'info');
+    showLoading('Sincronizando dados...');
+    
+    const failed = [];
+    
+    for (const movement of pendingMovements) {
+        try {
+            const result = await addLog(movement);
+            if (result.success) {
+                // Marcar como sincronizado no histórico
+                const history = JSON.parse(localStorage.getItem('movementsHistory') || '[]');
+                const idx = history.findIndex(h => h.timestamp === movement.timestamp);
+                if (idx !== -1) history[idx].synced = true;
+                localStorage.setItem('movementsHistory', JSON.stringify(history));
+            } else {
+                failed.push(movement);
+            }
+        } catch (error) {
+            failed.push(movement);
+        }
+    }
+    
+    if (failed.length === 0) {
+        pendingMovements = [];
+        localStorage.removeItem('pendingMovements');
+        showToast('✅ Todas as movimentações sincronizadas!', 'success');
+        updatePendingBadge();
+        hidePendingSection();
+    } else {
+        pendingMovements = failed;
+        localStorage.setItem('pendingMovements', JSON.stringify(failed));
+        showToast(`⚠️ ${failed.length} movimentações pendentes`, 'warning');
+        updatePendingBadge();
+        showPendingSection();
+    }
+    
+    hideLoading();
+}
+
+function updatePendingBadge() {
+    const count = pendingMovements.length;
+    const badge = document.getElementById('pending-badge');
+    if (count > 0) {
+        badge.textContent = `📦 ${count} movimentação${count > 1 ? 'ões' : ''} pendente${count > 1 ? 's' : ''}`;
+        badge.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function showPendingSection() {
+    if (pendingMovements.length === 0) return;
+    
+    pendingList.innerHTML = '';
+    pendingMovements.forEach((mov, idx) => {
+        const div = document.createElement('div');
+        div.className = 'pending-item';
+        div.innerHTML = `
+            <strong>${mov.partId}</strong> - ${mov.toLocation}<br>
+            <small>${new Date(mov.timestamp).toLocaleString()}</small>
+        `;
+        pendingList.appendChild(div);
+    });
+    pendingSection.style.display = 'block';
+}
+
+function hidePendingSection() {
+    pendingSection.style.display = 'none';
+}
+
+// Carregar pendências do localStorage
+try {
+    const saved = localStorage.getItem('pendingMovements');
+    if (saved) pendingMovements = JSON.parse(saved);
+    if (pendingMovements.length > 0) {
+        updatePendingBadge();
+        showPendingSection();
+        showToast(`📦 ${pendingMovements.length} movimentações pendentes`, 'info');
+    }
+} catch(e) {}
+
+window.syncPendingMovements = syncPendingMovements;
+
 // ===================== CÂMERA CORRIGIDA =====================
 async function startCamera(callback) {
     if (MODO_SIMULACAO) {
@@ -178,7 +303,6 @@ async function startCamera(callback) {
     cameraScreen.style.display = 'block';
     scanMessage.innerText = '📷 Solicitando permissão...';
     
-    // Configurações de fallback para celular
     const constraintsList = [
         { video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
         { video: { facingMode: "environment" } },
@@ -223,6 +347,8 @@ function startQRScanning(callback) {
     const context = canvas.getContext('2d');
     let lastScanTime = 0;
     const SCAN_DELAY = 1000;
+    
+    if (scanInterval) clearInterval(scanInterval);
     
     scanInterval = setInterval(() => {
         if (!cameraVideo.videoWidth || !cameraVideo.videoHeight) return;
@@ -302,6 +428,8 @@ loginBtn.onclick = async () => {
         if (result.success) {
             currentOperator = result;
             showMainScreen();
+            // Carregar cache de peças
+            await loadPartsCache();
         } else {
             showToast(result.error || 'Operador não encontrado', 'error');
         }
@@ -319,6 +447,7 @@ scanBadgeBtn.onclick = () => {
             if (result.success) {
                 currentOperator = result;
                 showMainScreen();
+                await loadPartsCache();
             } else {
                 showToast('QR Code inválido', 'error');
             }
@@ -328,13 +457,14 @@ scanBadgeBtn.onclick = () => {
     });
 };
 
+// Busca por QR Code
 scanPartBtn.onclick = () => {
     resetPartInfo();
     showToast('Aponte a câmera para o QR Code da peça', 'info');
     startCamera(async (qrCode) => {
         try {
             showLoading('Buscando peça...');
-            const partInfo = await getPartInfo(qrCode);
+            const partInfo = await getPartInfoOfflineFirst(qrCode);
             if (partInfo.error) {
                 showToast(partInfo.error, 'error');
                 hideLoading();
@@ -356,6 +486,45 @@ scanPartBtn.onclick = () => {
     });
 };
 
+// Busca manual por código
+manualSearchBtn.onclick = async () => {
+    const partId = manualPartCode.value.trim();
+    if (!partId) {
+        showToast('Digite o código da peça', 'warning');
+        return;
+    }
+    
+    resetPartInfo();
+    showLoading('Buscando peça...');
+    
+    try {
+        const partInfo = await getPartInfoOfflineFirst(partId);
+        if (partInfo.error) {
+            showToast(partInfo.error, 'error');
+            hideLoading();
+            return;
+        }
+        
+        currentPart = partInfo;
+        partNameSpan.innerText = partInfo.partName;
+        partSondaSpan.innerText = partInfo.sonda || 'Não informada';
+        currentLocationSpan.innerText = partInfo.currentLocation;
+        fromLocationInput.value = partInfo.currentLocation;
+        partInfoDiv.style.display = 'block';
+        hideLoading();
+        showToast(`Peça ${partInfo.partName} carregada!`, 'success');
+        manualPartCode.value = '';
+    } catch (error) {
+        hideLoading();
+        showToast('Erro ao buscar peça', 'error');
+    }
+};
+
+manualPartCode.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') manualSearchBtn.click();
+});
+
+// Envio do formulário
 movementForm.onsubmit = async (e) => {
     e.preventDefault();
     
@@ -400,7 +569,6 @@ movementForm.onsubmit = async (e) => {
         if (result.success) {
             showToast('✅ Movimentação registrada!', 'success');
             resetPartInfo();
-            // Tentar sincronizar pendentes
             await syncPendingMovements();
         } else if (!navigator.onLine || result.offline) {
             savePendingMovement(data);
@@ -413,6 +581,14 @@ movementForm.onsubmit = async (e) => {
         resetPartInfo();
     }
     hideLoading();
+};
+
+// Botão sincronizar
+syncNowBtn.onclick = async () => {
+    await syncPendingMovements();
+    if (pendingMovements.length === 0) {
+        hidePendingSection();
+    }
 };
 
 // ===================== VERIFICAÇÃO INICIAL =====================
@@ -429,6 +605,7 @@ if (typeof jsQR !== 'undefined') {
     console.log("✅ Biblioteca jsQR carregada");
 }
 
+// Tentar sincronizar ao iniciar
 if (navigator.onLine) {
-    syncPendingMovements();
+    setTimeout(() => syncPendingMovements(), 2000);
 }
