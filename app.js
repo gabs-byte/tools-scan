@@ -1,8 +1,7 @@
 // ===================== CONFIGURAÇÃO =====================
-const API_BASE = "https://script.google.com/macros/s/AKfycbzUAtKnQALTRGdCG7u78lJPY33Gwp16hoddCMtJXUmMgN8xgZBAlwSETlSYJOIEcXGW/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbz5XgXIHsaSLgQ4NxvM2Ay-NaBjJvq20txCUDNDJFI9SODK7O7JZQJ4w9-raHaUMdGl/exec";
 
-// ===================== CONFIGURAÇÕES DE TESTE =====================
-// Altere para true se quiser TESTAR SEM CÂMERA (simula leitura da peça P001)
+// ===================== CONFIGURAÇÕES =====================
 const MODO_SIMULACAO = false;
 
 // Variáveis globais
@@ -11,6 +10,9 @@ let currentPart = null;
 let cameraStream = null;
 let scanInterval = null;
 
+// Offline - movimentações pendentes
+let pendingMovements = [];
+
 // ===================== ELEMENTOS DO DOM =====================
 const loginScreen = document.getElementById('login-screen');
 const mainScreen = document.getElementById('main-screen');
@@ -18,38 +20,109 @@ const operatorInfoDiv = document.getElementById('operator-info');
 const scanPartBtn = document.getElementById('scan-part-btn');
 const partInfoDiv = document.getElementById('part-info');
 const partNameSpan = document.getElementById('part-name');
+const partSondaSpan = document.getElementById('part-sonda');
 const currentLocationSpan = document.getElementById('current-location');
 const fromLocationInput = document.getElementById('from-location');
 const movementForm = document.getElementById('movement-form');
 const scanBadgeBtn = document.getElementById('scan-badge-btn');
 const matriculaInput = document.getElementById('matricula');
 const loginBtn = document.getElementById('login-btn');
+const toLocationSelect = document.getElementById('to-location');
+const sondaSelector = document.getElementById('sonda-selector');
+const sondaNumberSelect = document.getElementById('sonda-number');
+const submitBtn = document.getElementById('submit-btn');
 
-// Elementos da câmera
+// Elementos câmera
 const cameraScreen = document.getElementById('camera-screen');
 const cameraVideo = document.getElementById('camera-video');
 const cameraCanvas = document.getElementById('camera-canvas');
 const closeCameraBtn = document.getElementById('close-camera-btn');
 const scanMessage = document.getElementById('scan-message');
 
-// ===================== FUNÇÕES DA API =====================
+// Elementos toast e loading
+const toast = document.getElementById('toast');
+const loading = document.getElementById('loading');
 
+// ===================== TOAST E LOADING =====================
+function showToast(message, type = 'info') {
+    toast.textContent = message;
+    toast.className = `toast ${type} show`;
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+function showLoading(text = 'Processando...') {
+    document.querySelector('.loading-text').textContent = text;
+    loading.style.display = 'flex';
+}
+
+function hideLoading() {
+    loading.style.display = 'none';
+}
+
+// ===================== OFFLINE - SALVAR MOVIMENTAÇÕES =====================
+function savePendingMovement(data) {
+    pendingMovements.push({
+        ...data,
+        timestamp: new Date().toISOString(),
+        operator: currentOperator
+    });
+    localStorage.setItem('pendingMovements', JSON.stringify(pendingMovements));
+    showToast('📱 Sem conexão. Movimentação salva localmente.', 'warning');
+}
+
+async function syncPendingMovements() {
+    if (!navigator.onLine) return;
+    if (pendingMovements.length === 0) return;
+    
+    showToast(`🔄 Sincronizando ${pendingMovements.length} movimentações...`, 'info');
+    showLoading('Sincronizando dados...');
+    
+    const failed = [];
+    
+    for (const movement of pendingMovements) {
+        try {
+            const result = await addLog(movement);
+            if (!result.success) failed.push(movement);
+        } catch (error) {
+            failed.push(movement);
+        }
+    }
+    
+    if (failed.length === 0) {
+        pendingMovements = [];
+        localStorage.removeItem('pendingMovements');
+        showToast('✅ Todas as movimentações sincronizadas!', 'success');
+    } else {
+        pendingMovements = failed;
+        localStorage.setItem('pendingMovements', JSON.stringify(failed));
+        showToast(`⚠️ ${failed.length} movimentações pendentes`, 'warning');
+    }
+    
+    hideLoading();
+}
+
+// Carregar movimentações pendentes do localStorage
+try {
+    const saved = localStorage.getItem('pendingMovements');
+    if (saved) pendingMovements = JSON.parse(saved);
+    if (pendingMovements.length > 0) {
+        showToast(`📦 ${pendingMovements.length} movimentações pendentes`, 'info');
+    }
+} catch(e) {}
+
+window.syncPendingMovements = syncPendingMovements;
+
+// ===================== FUNÇÕES API =====================
 async function authenticate(matricula) {
     try {
         const url = `${API_BASE}?action=authenticate&matricula=${encodeURIComponent(matricula)}`;
-        console.log("🔐 Autenticando:", url);
-        
         const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log("✅ Resposta autenticação:", data);
-        return data;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
     } catch (error) {
-        console.error("❌ Erro na autenticação:", error);
+        console.error("Erro autenticação:", error);
         throw error;
     }
 }
@@ -57,19 +130,11 @@ async function authenticate(matricula) {
 async function getPartInfo(partId) {
     try {
         const url = `${API_BASE}?action=getPartInfo&partId=${encodeURIComponent(partId)}`;
-        console.log("🔍 Buscando peça:", url);
-        
         const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log("✅ Resposta peça:", data);
-        return data;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
     } catch (error) {
-        console.error("❌ Erro ao buscar peça:", error);
+        console.error("Erro peça:", error);
         throw error;
     }
 }
@@ -80,6 +145,7 @@ async function addLog(data) {
             action: "addLog",
             operatorMatricula: data.operatorMatricula,
             partId: data.partId,
+            sonda: data.sonda || "",
             fromLocation: data.fromLocation,
             toLocation: data.toLocation,
             status: data.status,
@@ -87,90 +153,76 @@ async function addLog(data) {
         });
         
         const url = `${API_BASE}?${params.toString()}`;
-        console.log("📤 Enviando log (GET):", url);
-        
         const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log("✅ Resposta log:", result);
-        return result;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
     } catch (error) {
-        console.error("❌ Erro ao enviar log:", error);
+        console.error("Erro log:", error);
         throw error;
     }
 }
 
-// ===================== FUNÇÕES DE CÂMERA =====================
-
+// ===================== CÂMERA CORRIGIDA =====================
 async function startCamera(callback) {
-    // Modo simulação
     if (MODO_SIMULACAO) {
-        console.log("🎮 Modo simulação: usando peça P001");
-        alert("🔧 MODO TESTE: Simulando leitura da peça P001");
+        showToast('🔧 Modo simulação: Peça P001', 'info');
         callback("P001");
         return;
     }
     
-    // Verificar suporte a câmera
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("Seu navegador não suporta acesso à câmera.");
+        showToast('❌ Navegador não suporta câmera', 'error');
         return;
     }
     
-    // Mostrar tela da câmera
     cameraScreen.style.display = 'block';
-    scanMessage.innerText = '📷 Iniciando câmera...';
-    scanMessage.style.background = 'rgba(0,0,0,0.8)';
+    scanMessage.innerText = '📷 Solicitando permissão...';
     
-    try {
-        // Tentar câmera traseira primeiro
+    // Configurações de fallback para celular
+    const constraintsList = [
+        { video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+        { video: { facingMode: "environment" } },
+        { video: { width: { ideal: 1280 }, height: { ideal: 720 } } },
+        { video: true }
+    ];
+    
+    let stream = null;
+    
+    for (const constraints of constraintsList) {
         try {
-            cameraStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { exact: "environment" } }
-            });
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            if (stream) break;
         } catch (e) {
-            // Se não conseguir câmera traseira, tenta qualquer câmera
-            console.log("Tentando câmera padrão...");
-            cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            console.log("Fallback tentativa falhou:", e);
         }
-        
-        cameraVideo.srcObject = cameraStream;
-        
-        // Aguardar o vídeo carregar
-        await new Promise((resolve) => {
-            cameraVideo.onloadedmetadata = () => {
-                cameraVideo.play();
-                resolve();
-            };
-        });
-        
-        scanMessage.innerText = '📷 Aponte para o QR Code';
-        scanMessage.style.background = 'rgba(0,0,0,0.8)';
-        
-        // Iniciar a leitura contínua
-        startQRScanning(callback);
-        
-    } catch (error) {
-        console.error("❌ Erro ao acessar câmera:", error);
-        scanMessage.innerText = '❌ Erro ao acessar câmera';
-        scanMessage.style.background = 'rgba(220, 53, 69, 0.9)';
-        
-        setTimeout(() => {
-            stopCamera();
-            alert("Não foi possível acessar a câmera.\n\nVerifique as permissões do navegador.");
-        }, 2000);
     }
+    
+    if (!stream) {
+        scanMessage.innerText = '❌ Erro ao acessar câmera';
+        showToast('❌ Não foi possível acessar a câmera', 'error');
+        setTimeout(() => stopCamera(), 2000);
+        return;
+    }
+    
+    cameraVideo.srcObject = stream;
+    cameraStream = stream;
+    
+    await new Promise((resolve) => {
+        cameraVideo.onloadedmetadata = () => {
+            cameraVideo.play();
+            resolve();
+        };
+    });
+    
+    scanMessage.innerText = '📷 Aponte para o QR Code';
+    startQRScanning(callback);
 }
 
 function startQRScanning(callback) {
     const canvas = cameraCanvas;
     const context = canvas.getContext('2d');
     let lastScanTime = 0;
-    const SCAN_DELAY = 1000; // Aguardar 1 segundo entre leituras
+    const SCAN_DELAY = 1000;
     
     scanInterval = setInterval(() => {
         if (!cameraVideo.videoWidth || !cameraVideo.videoHeight) return;
@@ -178,41 +230,24 @@ function startQRScanning(callback) {
         const now = Date.now();
         if (now - lastScanTime < SCAN_DELAY) return;
         
-        // Configurar canvas com o tamanho do vídeo
         canvas.width = cameraVideo.videoWidth;
         canvas.height = cameraVideo.videoHeight;
-        
-        // Desenhar o frame do vídeo no canvas
         context.drawImage(cameraVideo, 0, 0, canvas.width, canvas.height);
         
-        // Obter os dados da imagem
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // Tentar decodificar QR Code
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert",
-        });
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
         
         if (code) {
-            // QR Code encontrado!
-            console.log("✅ QR Code detectado:", code.data);
             lastScanTime = now;
-            
-            // Mostrar mensagem de sucesso
             scanMessage.innerText = '✅ QR Code detectado!';
-            scanMessage.style.background = 'rgba(40, 167, 69, 0.9)';
-            
-            // Parar a leitura
             clearInterval(scanInterval);
             scanInterval = null;
-            
-            // Parar câmera e chamar callback
             setTimeout(() => {
                 stopCamera();
                 callback(code.data);
             }, 500);
         }
-    }, 200); // Verifica a cada 200ms para maior fluidez
+    }, 200);
 }
 
 function stopCamera() {
@@ -220,160 +255,169 @@ function stopCamera() {
         clearInterval(scanInterval);
         scanInterval = null;
     }
-    
     if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
         cameraStream = null;
     }
-    
     cameraVideo.srcObject = null;
     cameraScreen.style.display = 'none';
 }
 
-// Fechar câmera manualmente
-if (closeCameraBtn) {
-    closeCameraBtn.onclick = () => {
-        stopCamera();
-    };
-}
+if (closeCameraBtn) closeCameraBtn.onclick = stopCamera;
 
-// ===================== FUNÇÕES DE INTERFACE =====================
-
+// ===================== FUNÇÕES INTERFACE =====================
 function showMainScreen() {
     loginScreen.style.display = 'none';
     mainScreen.style.display = 'block';
     operatorInfoDiv.innerText = `👤 Operador: ${currentOperator.name} (${currentOperator.matricula})`;
-    console.log("🎉 Login realizado com sucesso!");
+    showToast(`Bem-vindo, ${currentOperator.name}!`, 'success');
 }
 
 function resetPartInfo() {
     partInfoDiv.style.display = 'none';
     movementForm.reset();
     currentPart = null;
-    console.log("🔄 Informações da peça resetadas");
 }
 
-// ===================== EVENTOS =====================
+// Mostrar seletor de sonda quando escolher "Praça de Sondagem"
+toLocationSelect.addEventListener('change', () => {
+    if (toLocationSelect.value === 'Praça de Sondagem') {
+        sondaSelector.style.display = 'block';
+    } else {
+        sondaSelector.style.display = 'none';
+    }
+});
 
-// Login com matrícula
+// ===================== EVENTOS =====================
 loginBtn.onclick = async () => {
     const matricula = matriculaInput.value.trim();
     if (!matricula) {
-        alert("Digite a matrícula");
+        showToast('Digite sua matrícula', 'warning');
         return;
     }
     
+    showLoading('Autenticando...');
     try {
-        console.log("🔐 Tentando login com matrícula:", matricula);
         const result = await authenticate(matricula);
-        
         if (result.success) {
             currentOperator = result;
             showMainScreen();
         } else {
-            alert(result.error || "Operador não encontrado");
+            showToast(result.error || 'Operador não encontrado', 'error');
         }
     } catch (error) {
-        console.error("❌ Erro no login:", error);
-        alert("Erro ao conectar com o servidor. Verifique sua conexão.");
+        showToast('Erro de conexão', 'error');
     }
+    hideLoading();
 };
 
-// Login com QR Code do crachá
 scanBadgeBtn.onclick = () => {
-    console.log("🎫 Iniciando leitura do QR Code do crachá...");
+    showToast('Aponte a câmera para o QR Code do crachá', 'info');
     startCamera(async (qrCode) => {
         try {
-            console.log("📱 QR Code do crachá lido:", qrCode);
             const result = await authenticate(qrCode);
-            
             if (result.success) {
                 currentOperator = result;
                 showMainScreen();
             } else {
-                alert("QR Code inválido - Operador não encontrado");
+                showToast('QR Code inválido', 'error');
             }
         } catch (error) {
-            console.error("❌ Erro na autenticação por QR:", error);
-            alert("Erro ao autenticar com QR Code");
+            showToast('Erro na autenticação', 'error');
         }
     });
 };
 
-// Escanear peça
 scanPartBtn.onclick = () => {
-    console.log("🔍 Iniciando leitura do QR Code da peça...");
     resetPartInfo();
+    showToast('Aponte a câmera para o QR Code da peça', 'info');
     startCamera(async (qrCode) => {
         try {
-            const partId = qrCode;
-            console.log("📦 Peça escaneada:", partId);
-            const partInfo = await getPartInfo(partId);
-            
+            showLoading('Buscando peça...');
+            const partInfo = await getPartInfo(qrCode);
             if (partInfo.error) {
-                alert(partInfo.error);
+                showToast(partInfo.error, 'error');
+                hideLoading();
                 return;
             }
             
             currentPart = partInfo;
             partNameSpan.innerText = partInfo.partName;
+            partSondaSpan.innerText = partInfo.sonda || 'Não informada';
             currentLocationSpan.innerText = partInfo.currentLocation;
             fromLocationInput.value = partInfo.currentLocation;
             partInfoDiv.style.display = 'block';
-            
-            console.log("✅ Informações da peça carregadas:", partInfo);
-            
+            hideLoading();
+            showToast('Peça carregada!', 'success');
         } catch (error) {
-            console.error("❌ Erro ao obter informações da peça:", error);
-            alert("Erro ao obter informações da peça");
+            hideLoading();
+            showToast('Erro ao buscar peça', 'error');
         }
     });
 };
 
-// Envio do formulário de movimentação
 movementForm.onsubmit = async (e) => {
     e.preventDefault();
     
     if (!currentPart) {
-        alert("Nenhuma peça selecionada");
+        showToast('Nenhuma peça selecionada', 'warning');
         return;
     }
     
-    const toLocation = document.getElementById('to-location').value;
-    const status = document.getElementById('status').value;
-    const notes = document.getElementById('notes').value;
+    let toLocation = toLocationSelect.value;
+    let sonda = '';
+    
+    if (toLocation === 'Praça de Sondagem') {
+        sonda = sondaNumberSelect.value;
+        toLocation = `${sonda}`;
+    }
     
     const data = {
         operatorMatricula: currentOperator.matricula,
         partId: currentPart.partId,
+        sonda: currentPart.sonda || '',
         fromLocation: fromLocationInput.value,
         toLocation: toLocation,
-        status: status,
-        notes: notes || ""
+        status: document.getElementById('status').value,
+        notes: document.getElementById('notes').value || ""
     };
     
-    console.log("📝 Dados da movimentação:", data);
+    showLoading('Registrando movimentação...');
+    
+    // Alerta se for para oficina
+    if (toLocationSelect.value === 'Oficina') {
+        showToast('🔧 ATENÇÃO: Acionar time de manutenção!', 'warning');
+    }
     
     try {
-        const result = await addLog(data);
+        let result;
+        if (navigator.onLine) {
+            result = await addLog(data);
+        } else {
+            result = { success: false, offline: true };
+        }
         
         if (result.success) {
-            alert("✅ Movimentação registrada com sucesso!");
-            console.log("✅ Movimentação registrada:", result);
+            showToast('✅ Movimentação registrada!', 'success');
+            resetPartInfo();
+            // Tentar sincronizar pendentes
+            await syncPendingMovements();
+        } else if (!navigator.onLine || result.offline) {
+            savePendingMovement(data);
             resetPartInfo();
         } else {
-            alert("❌ Erro ao registrar: " + (result.error || "Erro desconhecido"));
+            showToast('❌ Erro ao registrar', 'error');
         }
     } catch (error) {
-        console.error("❌ Erro ao enviar movimentação:", error);
-        alert("Erro ao enviar movimentação. Verifique sua conexão.");
+        savePendingMovement(data);
+        resetPartInfo();
     }
+    hideLoading();
 };
 
 // ===================== VERIFICAÇÃO INICIAL =====================
-console.log("=== 🚀 App Iniciado ===");
-console.log("📡 API Base:", API_BASE);
-console.log("🎮 Modo simulação:", MODO_SIMULACAO ? "ATIVADO ✅" : "DESATIVADO ❌");
+console.log("=== 🚀 Tools Scan Iniciado ===");
+console.log("🎮 Modo simulação:", MODO_SIMULACAO ? "ATIVADO" : "DESATIVADO");
 
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     console.log("✅ Camera API suportada");
@@ -383,8 +427,8 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
 
 if (typeof jsQR !== 'undefined') {
     console.log("✅ Biblioteca jsQR carregada");
-} else {
-    console.warn("⚠️ Biblioteca jsQR NÃO carregada");
 }
 
-console.log("=== 🚀 App Pronto ===");
+if (navigator.onLine) {
+    syncPendingMovements();
+}
