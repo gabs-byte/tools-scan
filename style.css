@@ -259,3 +259,64 @@ label {
     .screen { padding: 20px; }
     h2 { font-size: 24px; }
 }
+
+/* Status de conexão */
+.connection-status {
+    text-align: center;
+    padding: 8px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.connection-status.online {
+    background: #d4edda;
+    color: #155724;
+}
+
+.connection-status.offline {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.pending-badge {
+    background: #ffc107;
+    color: #333;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.pending-badge:hover {
+    background: #e0a800;
+}
+
+#pending-section {
+    margin-top: 20px;
+}
+
+.pending-item {
+    background: #f8f9fa;
+    border-left: 4px solid #ffc107;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.pending-item strong {
+    color: #11998e;
+}
+
+#sync-now-btn {
+    margin-top: 15px;
+    background: #28a745;
+}
+
+#sync-now-btn:hover {
+    background: #218838;
+}
