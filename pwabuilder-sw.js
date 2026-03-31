@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tools-scan-v2';
+const CACHE_NAME = 'tools-scan-v3';
 const urlsToCache = [
   '/',
   '/index.html',
