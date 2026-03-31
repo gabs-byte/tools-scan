@@ -1,5 +1,5 @@
 // ===================== CONFIGURAÇÃO =====================
-const API_BASE = "https://script.google.com/macros/s/AKfycbxWE8SYk-m3ZVUjdQn0Z_eaQdkLjT_fTtiisffmWg9ogn5muUe4eKc_gV3FnwqMOnxN/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbyq2SktkML5UYFWgDq7UmpI6qJBZhFbeJNLYhLzjdogtocAciryCRETruEtSvjTr8no/exec";
 
 // ===================== CONFIGURAÇÕES =====================
 const MODO_SIMULACAO = false;
