@@ -27,8 +27,29 @@
     <div id="main-screen" class="screen" style="display:none;">
         <div id="operator-info" class="operator-info"></div>
         
+        <!-- Status de conexão -->
+        <div id="connection-status" class="connection-status online">
+            📡 Online
+        </div>
+        
+        <!-- Pendências -->
+        <div id="pending-badge" style="display:none;" class="pending-badge">
+            📦 X movimentações pendentes
+        </div>
+        
         <div class="card">
-            <button id="scan-part-btn" class="primary-btn">🔍 Escanear Peça</button>
+            <button id="scan-part-btn" class="primary-btn">🔍 Escanear QR Code</button>
+            
+            <div style="text-align: center; margin: 15px 0; color: #999;">ou</div>
+            
+            <label>🔢 Buscar por código da peça:</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="manual-part-code" placeholder="Ex: P001, BROCA01, MOTOR05" style="flex:1;">
+                <button id="manual-search-btn" style="width: auto; padding: 12px 20px;">Buscar</button>
+            </div>
+            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                💡 O código está impresso na OS junto com o QR Code
+            </div>
         </div>
         
         <div id="part-info" class="card" style="display:none;">
@@ -75,6 +96,13 @@
                 
                 <button type="submit" class="confirm-btn" id="submit-btn">✅ Confirmar Movimentação</button>
             </form>
+        </div>
+        
+        <!-- Sessão de pendências -->
+        <div id="pending-section" style="display:none;" class="card">
+            <h3>📦 Movimentações Pendentes</h3>
+            <div id="pending-list"></div>
+            <button id="sync-now-btn" style="background: #28a745;">🔄 Sincronizar Agora</button>
         </div>
     </div>
 
@@ -136,15 +164,30 @@
             document.getElementById('install-banner').style.display = 'none';
         });
         
-        // Sincronização quando voltar online
+        // Status de conexão
+        function updateConnectionStatus() {
+            const statusDiv = document.getElementById('connection-status');
+            if (navigator.onLine) {
+                statusDiv.textContent = '📡 Online';
+                statusDiv.className = 'connection-status online';
+            } else {
+                statusDiv.textContent = '⚠️ Offline - Dados salvos localmente';
+                statusDiv.className = 'connection-status offline';
+            }
+        }
+        
         window.addEventListener('online', () => {
+            updateConnectionStatus();
             showToast('📡 Conexão restaurada. Sincronizando dados...', 'info');
             if (window.syncPendingMovements) window.syncPendingMovements();
         });
         
         window.addEventListener('offline', () => {
+            updateConnectionStatus();
             showToast('⚠️ Sem conexão. Os dados serão salvos localmente.', 'warning');
         });
+        
+        updateConnectionStatus();
     </script>
 </body>
 </html>
