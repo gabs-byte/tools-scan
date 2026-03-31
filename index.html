@@ -27,7 +27,7 @@
     <div id="main-screen" class="screen" style="display:none;">
         <div id="operator-info" class="operator-info"></div>
         
-        <!-- Status de conexão -->
+        <!-- Status de conexão com qualidade -->
         <div id="connection-status" class="connection-status online">
             📡 Online
         </div>
@@ -56,6 +56,8 @@
             <h3>Informações da Peça</h3>
             <p><strong>Peça:</strong> <span id="part-name"></span></p>
             <p><strong>Sonda:</strong> <span id="part-sonda"></span></p>
+            <p><strong>Modelo:</strong> <span id="sonda-modelo"></span></p>
+            <p><strong>Responsável:</strong> <span id="sonda-responsavel"></span></p>
             <p><strong>Localização atual:</strong> <span id="current-location"></span></p>
             
             <form id="movement-form">
@@ -156,31 +158,6 @@
         document.getElementById('close-install-btn').addEventListener('click', () => {
             document.getElementById('install-banner').style.display = 'none';
         });
-        
-        // Status de conexão
-        function updateConnectionStatus() {
-            const statusDiv = document.getElementById('connection-status');
-            if (navigator.onLine) {
-                statusDiv.textContent = 'Online';
-                statusDiv.className = 'connection-status online';
-            } else {
-                statusDiv.textContent = 'Offline - Dados salvos localmente';
-                statusDiv.className = 'connection-status offline';
-            }
-        }
-        
-        window.addEventListener('online', () => {
-            updateConnectionStatus();
-            showToast('Conexão restaurada. Sincronizando dados...', 'info');
-            if (window.syncPendingMovements) window.syncPendingMovements();
-        });
-        
-        window.addEventListener('offline', () => {
-            updateConnectionStatus();
-            showToast('Sem conexão. Os dados serão salvos localmente.', 'warning');
-        });
-        
-        updateConnectionStatus();
     </script>
 </body>
 </html>
