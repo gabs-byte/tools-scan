@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#667eea">
+    <meta name="theme-color" content="#11998e">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Controle Peças">
+    <meta name="apple-mobile-web-app-title" content="Tools Scan">
     
-    <title>Controle de Peças</title>
+    <title>Tools Scan</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon-192.png">
     
-    <!-- Favicon para navegadores -->
-    <link rel="icon" type="image/png" href="icon-192.png">
+    <!-- Ícone embutido -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2311998e'/%3E%3Ctext x='50' y='67' font-size='50' text-anchor='middle' fill='white'%3E🔧%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2311998e'/%3E%3Ctext x='50' y='67' font-size='50' text-anchor='middle' fill='white'%3E🔧%3C/text%3E%3C/svg%3E">
 </head>
 <body>
     <div id="login-screen" class="screen">
-        <h2>🎯 Controle de Peças</h2>
+        <h2>🔧 Tools Scan</h2>
         <input type="text" id="matricula" placeholder="Digite sua matrícula">
         <button id="login-btn">✅ Entrar com Matrícula</button>
         <button id="scan-badge-btn">📱 Ler QR Code do Crachá</button>
@@ -34,6 +34,7 @@
         <div id="part-info" class="card" style="display:none;">
             <h3>📦 Informações da Peça</h3>
             <p><strong>Peça:</strong> <span id="part-name"></span></p>
+            <p><strong>Sonda:</strong> <span id="part-sonda"></span></p>
             <p><strong>Localização atual:</strong> <span id="current-location"></span></p>
             
             <form id="movement-form">
@@ -43,11 +44,25 @@
                 <label>🎯 Para:</label>
                 <select id="to-location">
                     <option value="Praça de Sondagem">Praça de Sondagem</option>
-                    <option value="Estoque">Estoque</option>
                     <option value="Oficina">Oficina</option>
-                    <option value="Manutenção">Manutenção</option>
-                    <option value="Campo">Campo</option>
+                    <option value="Estoque">Estoque</option>
                 </select>
+                
+                <div id="sonda-selector" style="display:none;">
+                    <label>📍 Praça de Sondagem:</label>
+                    <select id="sonda-number">
+                        <option value="N1">N1</option>
+                        <option value="N2">N2</option>
+                        <option value="N3">N3</option>
+                        <option value="N4">N4</option>
+                        <option value="N5">N5</option>
+                        <option value="N6">N6</option>
+                        <option value="N7">N7</option>
+                        <option value="N8">N8</option>
+                        <option value="N9">N9</option>
+                        <option value="N10">N10</option>
+                    </select>
+                </div>
                 
                 <label>⚙️ Status:</label>
                 <select id="status">
@@ -58,14 +73,14 @@
                 <label>📝 Observações:</label>
                 <textarea id="notes" rows="3" placeholder="Ex: Quebrou rosca, necessidade de manutenção..."></textarea>
                 
-                <button type="submit" class="confirm-btn">✅ Confirmar Movimentação</button>
+                <button type="submit" class="confirm-btn" id="submit-btn">✅ Confirmar Movimentação</button>
             </form>
         </div>
     </div>
 
     <!-- Tela da câmera -->
     <div id="camera-screen" style="display:none;">
-        <video id="camera-video" autoplay playsinline></video>
+        <video id="camera-video" autoplay playsinline muted></video>
         <canvas id="camera-canvas" style="display:none;"></canvas>
         <div class="camera-controls">
             <div id="scan-message">📷 Iniciando câmera...</div>
@@ -73,31 +88,35 @@
         </div>
     </div>
 
+    <!-- Toast notification -->
+    <div id="toast" class="toast">Mensagem</div>
+    
+    <!-- Loading spinner -->
+    <div id="loading" class="loading-overlay" style="display:none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Processando...</div>
+    </div>
+
     <!-- Banner de instalação do PWA -->
-    <div id="install-banner" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#667eea; color:white; padding:15px; text-align:center; z-index:10001; box-shadow:0 -2px 10px rgba(0,0,0,0.2);">
-        <p style="margin-bottom:10px;">📱 Instale este app no seu celular!</p>
-        <button id="install-btn" style="background:white; color:#667eea; width:auto; padding:8px 20px; margin:0;">Instalar</button>
-        <button id="close-install-btn" style="background:transparent; color:white; width:auto; padding:8px 20px; margin:0;">Fechar</button>
+    <div id="install-banner" style="display:none;">
+        <p>📱 Instale este app no seu celular!</p>
+        <button id="install-btn">Instalar</button>
+        <button id="close-install-btn">Fechar</button>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="app.js"></script>
     
     <script>
-        // Registro do Service Worker para PWA
+        // Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
-                .then(registration => {
-                    console.log('✅ Service Worker registrado:', registration.scope);
-                })
-                .catch(error => {
-                    console.error('❌ Erro ao registrar Service Worker:', error);
-                });
+                .then(registration => console.log('✅ Service Worker registrado'))
+                .catch(error => console.error('❌ Service Worker:', error));
         }
         
-        // Lógica de instalação do PWA
+        // PWA Installation
         let deferredPrompt;
-        
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
@@ -107,8 +126,7 @@
         document.getElementById('install-btn').addEventListener('click', async () => {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log(`Instalação: ${outcome}`);
+                await deferredPrompt.userChoice;
                 deferredPrompt = null;
                 document.getElementById('install-banner').style.display = 'none';
             }
@@ -116,6 +134,16 @@
         
         document.getElementById('close-install-btn').addEventListener('click', () => {
             document.getElementById('install-banner').style.display = 'none';
+        });
+        
+        // Sincronização quando voltar online
+        window.addEventListener('online', () => {
+            showToast('📡 Conexão restaurada. Sincronizando dados...', 'info');
+            if (window.syncPendingMovements) window.syncPendingMovements();
+        });
+        
+        window.addEventListener('offline', () => {
+            showToast('⚠️ Sem conexão. Os dados serão salvos localmente.', 'warning');
         });
     </script>
 </body>
