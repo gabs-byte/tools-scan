@@ -110,6 +110,94 @@ label {
     display: block;
 }
 
+/* Status de conexão */
+.connection-status {
+    text-align: center;
+    padding: 8px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.connection-status.online {
+    background: #d4edda;
+    color: #155724;
+}
+
+.connection-status.offline {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.pending-badge {
+    background: #ffc107;
+    color: #333;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.pending-badge:hover {
+    background: #e0a800;
+}
+
+/* Seletor de Praças de Sondagem */
+#sonda-selector {
+    margin: 10px 0;
+    padding: 10px;
+    background: #f0f9f0;
+    border-radius: 10px;
+    border-left: 4px solid #11998e;
+}
+
+#sonda-selector label {
+    color: #11998e;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+#sonda-number {
+    background: white;
+    border: 2px solid #11998e;
+    font-weight: bold;
+}
+
+#sonda-number:focus {
+    border-color: #38ef7d;
+    box-shadow: 0 0 0 3px rgba(56, 239, 125, 0.2);
+}
+
+/* Pendências */
+#pending-section {
+    margin-top: 20px;
+}
+
+.pending-item {
+    background: #f8f9fa;
+    border-left: 4px solid #ffc107;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.pending-item strong {
+    color: #11998e;
+}
+
+#sync-now-btn {
+    margin-top: 15px;
+    background: #28a745;
+}
+
+#sync-now-btn:hover {
+    background: #218838;
+}
+
 /* ==================== CÂMERA ==================== */
 #camera-screen {
     position: fixed;
@@ -258,65 +346,4 @@ label {
 @media (max-width: 600px) {
     .screen { padding: 20px; }
     h2 { font-size: 24px; }
-}
-
-/* Status de conexão */
-.connection-status {
-    text-align: center;
-    padding: 8px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    font-size: 14px;
-    font-weight: bold;
-}
-
-.connection-status.online {
-    background: #d4edda;
-    color: #155724;
-}
-
-.connection-status.offline {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.pending-badge {
-    background: #ffc107;
-    color: #333;
-    text-align: center;
-    padding: 10px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.pending-badge:hover {
-    background: #e0a800;
-}
-
-#pending-section {
-    margin-top: 20px;
-}
-
-.pending-item {
-    background: #f8f9fa;
-    border-left: 4px solid #ffc107;
-    padding: 10px;
-    margin-bottom: 10px;
-    border-radius: 8px;
-    font-size: 14px;
-}
-
-.pending-item strong {
-    color: #11998e;
-}
-
-#sync-now-btn {
-    margin-top: 15px;
-    background: #28a745;
-}
-
-#sync-now-btn:hover {
-    background: #218838;
 }
